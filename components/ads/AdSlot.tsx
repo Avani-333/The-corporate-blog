@@ -5,7 +5,7 @@ import { useInView } from 'react-intersection-observer';
 
 export type AdType = 'adsense' | 'direct' | 'placeholder';
 
-interface AdSlotProps {
+export interface AdSlotProps {
   /**
    * Unique identifier for the ad slot (used for multiple ads on same page)
    * Example: 'post-content-1', 'sidebar-1'
