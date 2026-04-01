@@ -399,7 +399,7 @@ export function useBlogPostAds(slug: string) {
  *   return (
  *     <article>
  *       <h1>My Post</h1>
- *       {/* Content automatically gets ads injected */}
+ *       // Content automatically gets ads injected
  *     </article>
  *   );
  * }
