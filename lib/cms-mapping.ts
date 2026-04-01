@@ -517,3 +517,38 @@ export function validateTagData(tagData: {
 
   return errors;
 }
+
+/**
+ * Validates CMS editor state
+ */
+export function validateCMSData(editorState: EditorState | any): {
+  isValid: boolean;
+  errors: string[];
+  fieldErrors?: Record<string, string>;
+} {
+  const errors: string[] = [];
+  const fieldErrors: Record<string, string> = {};
+
+  if (!editorState) {
+    return { isValid: false, errors: ['Editor state is required'], fieldErrors };
+  }
+
+  if (!editorState.post) {
+    errors.push('Post data is required');
+  } else {
+    const postErrors = validatePostData(editorState);
+    if (postErrors.length > 0) {
+      errors.push(...postErrors);
+    }
+  }
+
+  if (!editorState.content || !Array.isArray(editorState.content) || editorState.content.length === 0) {
+    errors.push('Content is required and must be non-empty');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    fieldErrors: Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
+  };
+}

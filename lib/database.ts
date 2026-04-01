@@ -556,6 +556,29 @@ export function sanitizeSlugInput(input: string): string {
 }
 
 // ============================================================================
+// CONTENT ANALYSIS UTILITIES
+// ============================================================================
+
+/**
+ * Calculates reading time in minutes
+ */
+export function calculateReadingTime(wordCount: number): number {
+  if (!wordCount || wordCount <= 0) return 0;
+  return Math.ceil(wordCount / 200); // ~200 words per minute
+}
+
+/**
+ * Extracts word count from text or HTML content
+ */
+export function extractWordCount(content: string): number {
+  if (!content) return 0;
+  // Remove HTML tags
+  const textOnly = content.replace(/<[^>]*>/g, '');
+  // Count words (split on whitespace)
+  return textOnly.trim().split(/\s+/).length;
+}
+
+// ============================================================================
 // EXPORT ALL TYPES
 // ============================================================================
 

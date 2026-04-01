@@ -345,6 +345,11 @@ export function generateTokenId(): string {
 // ERROR UTILITIES
 // ============================================================================
 
+/**
+ * Re-export extractUser from middleware for backwards compatibility
+ */
+export { extractUser } from './middleware';
+
 export const AUTH_ERRORS = {
   INVALID_CREDENTIALS: 'Invalid email or password',
   USER_NOT_FOUND: 'User not found',

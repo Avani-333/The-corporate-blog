@@ -58,6 +58,8 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+export default prisma;
+
 process.on('SIGTERM', async () => {
   await disconnectDatabase();
   process.exit(0);

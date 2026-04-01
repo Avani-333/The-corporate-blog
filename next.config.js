@@ -9,7 +9,6 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   
   experimental: {
-    appDir: true,
     serverComponentsExternalPackages: ['@prisma/client'],
   },
   images: {
