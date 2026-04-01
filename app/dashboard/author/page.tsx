@@ -64,8 +64,7 @@ function AuthorStats() {
                 <div className="text-sm font-medium text-gray-600">{stat.title}</div>
                 <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
                 <div className={`text-sm ${
-                  stat.changeType === 'positive' ? 'text-green-600' : 
-                  stat.changeType === 'negative' ? 'text-red-600' : 'text-gray-600'
+                  stat.changeType === 'positive' ? 'text-green-600' : 'text-gray-600'
                 }`}>
                   {stat.change}
                 </div>
