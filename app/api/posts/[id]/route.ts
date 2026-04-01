@@ -221,7 +221,6 @@ async function handleDelete(
       await invalidatePostCache({
         postSlug: post.slug,
         postId: id,
-        categorySlug: post.categoryId,
       });
 
       logCacheInvalidation('post_deleted', id, {
