@@ -96,18 +96,11 @@ class RedisBlacklistStore {
   constructor(redisClient?: any) {
     if (redisClient) {
       this.redis = redisClient;
-    } else if (process.env.REDIS_URL) {
-      // Lazy load Redis
-      try {
-        const Redis = require('redis');
-        this.redis = Redis.createClient({
-          url: process.env.REDIS_URL,
-          password: process.env.REDIS_PASSWORD,
-        });
-      } catch (error) {
-        console.warn('Redis client not available, falling back to memory store');
-        this.redis = null;
-      }
+    } else if (process.env.REDIS_URL && process.env.REDIS_ENABLED !== 'false') {
+      // Redis is optional - only load if explicitly enabled and available
+      // In serverless environments like Vercel, this is typically disabled
+      this.redis = null;
+      console.warn('Redis support is disabled in this environment. Using memory store.');
     }
   }
 

@@ -332,8 +332,3 @@ export function AdDebugPanel() {
     </div>
   );
 }
-
-// Auto-initialize in development
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  initializeAdDebugUtils();
-}
