@@ -181,7 +181,6 @@ async function handleDelete(
         slug: true,
         authorId: true, 
         deletedAt: true,
-        categoryId: true,
       },
     });
 
