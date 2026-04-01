@@ -1,0 +1,88 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+
+# Production
+/build
+
+# Source maps (can expose sensitive code)
+*.map
+*.js.map
+*.css.map
+*.ts.map
+.next/**/*.map
+dist/**/*.map
+build/**/*.map
+
+# Sentry related
+.sentry/
+.sentryclirc
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files (NEVER commit)
+.env*.local
+.env
+.env.development
+.env.production
+.env.production.local
+.env.test
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+logs
+*.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Sitemap
+/public/sitemap*.xml
+/public/robots.txt
+
+# Temporary
+/tmp/
+/temp/
+
+# Database
+*.db
+*.sqlite
+
+# Images (during development)
+/public/uploads/
+
+# Analysis
+.bundle-analyzer/

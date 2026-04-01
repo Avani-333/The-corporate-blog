@@ -1,0 +1,562 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL") // uses connection pooling
+  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
+}
+
+// User Management
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  username      String?         @unique
+  name          String?
+  avatar        String?
+  bio           String?
+  password      String          // Added for JWT authentication
+  role          UserRole        @default(SUBSCRIBER)  // Changed default to SUBSCRIBER
+  status        UserStatus      @default(ACTIVE)
+  emailVerified Boolean         @default(false)  // Changed to Boolean for direct usage
+  
+  // OAuth Integration
+  googleId      String?         @unique  // Google OAuth ID
+  
+  // Social Links
+  website       String?
+  twitter       String?
+  linkedin      String?
+  github        String?
+  
+  // Authentication
+  accounts      Account[]
+  sessions      Session[]
+  refreshTokens RefreshToken[]  // Custom refresh tokens
+  
+  // Content
+  posts         Post[]
+  comments      Comment[]
+  uploadedImages Image[] @relation(name: "uploadedImages")
+  
+  // Activity
+  postViews     PostView[]
+  likes         PostLike[]
+  auditLogs     AuditLog[] @relation("userAction")
+  auditLogsTarget AuditLog[] @relation("targetUser")
+  affiliateClicks AffiliateClick[] @relation(name: "affiliateClicks")
+  
+  // Soft Delete
+  deletedAt     DateTime?
+  deletedBy     String?        // User ID who deleted this user
+  
+  // Metadata
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  lastLogin     DateTime?       // Changed from lastLoginAt for consistency
+  
+  @@map("users")
+  @@index([email])
+  @@index([username])
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([googleId])
+}
+
+// Custom Refresh Token Management
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenId     String    @unique  // Unique identifier for this token
+  token       String    @unique  // The actual refresh token (hashed)
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastUsedAt  DateTime?
+  
+  // Device and security info
+  deviceInfo  String?
+  ipAddress   String?
+  userAgent   String?
+  isRevoked   Boolean   @default(false)
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("refresh_tokens")
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([isRevoked])
+  @@index([tokenId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+// Content Management
+model Post {
+  id              String           @id @default(cuid())
+  title           String           @db.VarChar(255) // Add length constraint
+  slug            String           @unique
+  excerpt         String?          @db.Text
+  content         Json?            // Block editor content
+  contentHtml     String?          @db.Text // Rendered HTML for performance
+  
+  // SEO
+  seoTitle        String?          @db.VarChar(60) // Optimal length for SERP
+  metaDescription String?          @db.VarChar(160) // Optimal length for SERP
+  
+  // Media
+  featuredImage   String?
+  featuredImageAlt String?
+  
+  // Publishing
+  status          PostStatus       @default(DRAFT)
+  publishedAt     DateTime?
+  scheduledAt     DateTime?
+  
+  // Categorization  
+  categories      PostCategory[]
+  tags            PostTag[]
+  
+  // Authoring
+  authorId        String
+  author          User             @relation(fields: [authorId], references: [id])
+  
+  // Engagement
+  views           PostView[]
+  likes           PostLike[]
+  comments        Comment[]
+  
+  // Analytics
+  viewCount       Int              @default(0)
+  likeCount       Int              @default(0)
+  commentCount    Int              @default(0)
+  shareCount      Int              @default(0)
+  
+  // Reading metrics
+  wordCount       Int?
+  readingTime     Int?             // in minutes
+  
+  // Sponsorship & Affiliates
+  is_sponsored    Boolean          @default(false)
+  affiliateLinkVia String?         // Target URL for affiliate redirect
+  affiliateClicks AffiliateClick[]
+  
+  // Soft Delete
+  deletedAt       DateTime?
+  deletedBy       String?          // User ID who deleted this post
+  
+  // Publishing Audit Trail
+  publishedBy     String?          // User ID who published this post
+  editedBy        String?          // User ID who last edited this post
+  publishedAt_audit DateTime?      // When it was published
+  
+  // Metadata
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  version         Int              @default(1)
+  
+  @@map("posts")
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([slug])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([scheduledAt])
+  @@index([title])
+  @@index([viewCount])
+  @@index([publishedBy])
+  @@index([editedBy])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  color       String?  // Hex color for UI
+  icon        String?  // Icon name or emoji
+  
+  // Hierarchy (for subcategories - future)
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  
+  // Content
+  posts       PostCategory[]
+  
+  // SEO
+  seoTitle        String?
+  metaDescription String?
+  
+  // Publishing
+  isVisible   Boolean  @default(true)
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("categories")
+  @@index([slug])
+  @@index([name])
+  @@index([isVisible])
+  @@index([parentId])
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  color       String?
+  
+  // Content
+  posts       PostTag[]
+  
+  // Metadata  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("tags")
+  @@index([slug])
+  @@index([name])
+}
+
+model PostTag {
+  postId    String
+  tagId     String
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag       Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([postId, tagId])
+  @@map("post_tags")
+}
+
+model PostCategory {
+  postId     String
+  categoryId String
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  // Ordering for displaying categories
+  order      Int      @default(0)
+  
+  // Metadata
+  createdAt  DateTime @default(now())
+  
+  @@id([postId, categoryId])
+  @@map("post_categories")
+  @@index([postId])
+  @@index([categoryId])
+}
+
+// Engagement & Analytics
+model PostView {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String?
+  ipUaHash  String
+  viewedOn  DateTime @db.Date
+  ipAddress String?
+  userAgent String?
+  country   String?
+  referrer  String?
+  
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+  
+  @@map("post_views")
+  @@unique([postId, ipUaHash, viewedOn])
+  @@index([postId])
+  @@index([postId, viewedOn])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+// Affiliate Tracking
+model AffiliateClick {
+  id          String   @id @default(cuid())
+  postId      String
+  postSlug    String   // Cached for easier tracking
+  
+  // Click metadata
+  referrer    String?  // HTTP referrer header
+  ipAddress   String?  // Anonymized visitor IP
+  userAgent   String?  // Browser user agent
+  countryCode String?  // Geo-location
+  deviceType  String?  // mobile, desktop, tablet
+  
+  // User info (if logged in)
+  userId      String?
+  user        User?    @relation(name: "affiliateClicks", fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Relations
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  
+  @@map("affiliate_clicks")
+  @@index([postId])
+  @@index([postSlug])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([postId, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  
+  // Hierarchy
+  parentId  String?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  
+  // Relations
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Moderation
+  status    CommentStatus @default(PUBLISHED)
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("comments")
+  @@index([postId])
+  @@index([userId])
+  @@index([status])
+}
+
+// Media Management
+model Image {
+  id          String   @id @default(cuid())
+  filename    String
+  originalName String
+  url         String
+  thumbnailUrl String?
+  width       Int?
+  height      Int?
+  size        Int      // in bytes
+  mimeType    String
+  alt         String?
+  
+  // Cloudinary specific
+  publicId    String?  @unique
+  folder      String?
+  
+  // Usage tracking
+  usageCount  Int      @default(0)
+  
+  // Uploader
+  uploaderId  String?
+  uploader    User?    @relation(name: "uploadedImages", fields: [uploaderId], references: [id], onDelete: SetNull)
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("images")
+  @@index([publicId])
+  @@index([uploaderId])
+  @@index([filename])
+  @@index([createdAt])
+}
+
+// System & Configuration
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  type      SettingType @default(STRING)
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("settings")
+}
+
+// Enhanced Audit Logging
+model AuditLog {
+  id              String         @id @default(cuid())
+  
+  // Action & Entity
+  action          AuditAction    // CREATE, UPDATE, DELETE, PUBLISH, UNPUBLISH, etc.
+  entity          AuditEntity    // Post, User, Category, etc.
+  entityId        String         @db.VarChar(255)
+  
+  // User Information
+  userId          String?        // Who performed the action
+  user            User?          @relation("userAction", fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Target User (for user-specific actions)
+  targetUserId    String?        // User being acted upon
+  targetUser      User?          @relation("targetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  
+  // Publishing Specific Fields
+  publishedBy     String?        // For POST_PUBLISHED action
+  publishDetails  Json?          // Contains publishedAt, visibility, etc.
+  editDetails     Json?          // Contains previous editors, edit history
+  
+  // Data Changes
+  oldData         Json?          // Previous state (limited fields, not full record)
+  newData         Json?          // New state (limited fields, not full record)
+  changedFields   String[]       // Array of field names that changed
+  
+  // Context & Security
+  ipAddress       String?        @db.VarChar(45) // Support IPv6
+  userAgent       String?        @db.Text
+  requestId       String?        // correlation ID for request tracing
+  status          AuditStatus    @default(SUCCESS) // SUCCESS, FAILED, etc.
+  errorMessage    String?        // If status is FAILED
+  
+  // Metadata
+  createdAt       DateTime       @default(now())
+  
+  @@map("audit_logs")
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([entity, action, createdAt])
+  @@index([entityId, action])
+  @@index([targetUserId])
+}
+
+// Enums
+enum UserRole {
+  SUPER_ADMIN    // Full system access
+  ADMIN          // Site administration
+  MODERATOR      // Comment and user moderation  
+  EDITOR         // Content editing and publishing
+  AUTHOR         // Content creation
+  CONTRIBUTOR    // Limited content creation
+  SUBSCRIBER     // Premium content access
+  GUEST          // Basic guest access
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+  ARCHIVED
+  DELETED
+}
+
+enum CommentStatus {
+  PUBLISHED
+  PENDING
+  SPAM
+  DELETED
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  PUBLISH
+  UNPUBLISH
+  SCHEDULE
+  RESTORE
+  UNDELETE
+  APPROVE
+  REJECT
+  SUSPEND
+  ACTIVATE
+  LOCK
+  UNLOCK
+}
+
+enum AuditEntity {
+  USER
+  POST
+  COMMENT
+  CATEGORY
+  TAG
+  IMAGE
+  SETTING
+}
+
+enum AuditStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+}

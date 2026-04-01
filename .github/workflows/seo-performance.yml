@@ -1,0 +1,600 @@
+name: SEO & Performance Monitoring
+
+on:
+  # Run on every push to main
+  push:
+    branches: [ main ]
+  
+  # Run on every pull request
+  pull_request:
+    branches: [ main ]
+  
+  # Run daily at 6 AM UTC
+  schedule:
+    - cron: '0 6 * * *'
+  
+  # Allow manual triggers
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Specific URL to audit (optional)'
+        required: false
+        type: string
+      full_audit:
+        description: 'Run full audit suite'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  NODE_VERSION: '18'
+  SITE_URL: ${{ secrets.VERCEL_URL || 'https://thecorporateblog.vercel.app' }}
+
+jobs:
+  # ============================================================================
+  # SEO VALIDATION
+  # ============================================================================
+  seo-validation:
+    name: SEO Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g lighthouse chrome-launcher
+      
+      - name: Generate SEO metadata
+        run: |
+          node -p "
+          const { generateHomepageSEO, generatePostSEO } = require('./lib/seo');
+          const homepage = generateHomepageSEO();
+          const fs = require('fs');
+          fs.writeFileSync('homepage-seo.json', JSON.stringify(homepage, null, 2));
+          console.log('Homepage SEO metadata generated');
+          "
+      
+      - name: Validate SEO structure
+        run: |
+          node scripts/benchmark-cli.js validate-seo homepage-seo.json
+      
+      - name: Upload SEO artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-metadata
+          path: |
+            homepage-seo.json
+            seo-reports/
+          retention-days: 30
+
+  # ============================================================================
+  # LIGHTHOUSE PERFORMANCE AUDIT
+  # ============================================================================
+  lighthouse-audit:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+    needs: seo-validation
+    
+    strategy:
+      matrix:
+        page:
+          - { name: 'Homepage', url: '/' }
+          - { name: 'Blog Index', url: '/blog' }
+          - { name: 'Sample Post', url: '/blog/sample-post-slug' }
+          - { name: 'Category Page', url: '/categories/technology' }
+          - { name: 'Author Page', url: '/authors/admin' }
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+      
+      - name: Build application
+        run: |
+          npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
+      
+      - name: Start application
+        run: |
+          npm run start &
+          sleep 30
+        env:
+          PORT: 3000
+      
+      - name: Wait for application
+        run: |
+          npx wait-on http://localhost:3000 --timeout 60000
+      
+      - name: Run Lighthouse audit
+        run: |
+          node scripts/benchmark-cli.js audit "http://localhost:3000${{ matrix.page.url }}" \
+            --json --output lighthouse-reports
+        env:
+          CHROME_PATH: /usr/bin/google-chrome-stable
+      
+      - name: Generate performance report
+        run: |
+          node scripts/benchmark-cli.js report --days 1 \
+            --url "http://localhost:3000${{ matrix.page.url }}" \
+            --output "performance-report-${{ matrix.page.name }}.md"
+      
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-${{ matrix.page.name }}
+          path: |
+            lighthouse-reports/
+            performance-report-${{ matrix.page.name }}.md
+          retention-days: 30
+      
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = './performance-report-${{ matrix.page.name }}.md';
+            
+            if (fs.existsSync(path)) {
+              const report = fs.readFileSync(path, 'utf8');
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## 📊 Performance Report - ${{ matrix.page.name }}\n\n${report}`
+              });
+            }
+
+  # ============================================================================
+  # CORE WEB VITALS CHECK
+  # ============================================================================
+  core-web-vitals:
+    name: Core Web Vitals Check
+    runs-on: ubuntu-latest
+    needs: lighthouse-audit
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Lighthouse results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lighthouse-*
+          merge-multiple: true
+      
+      - name: Analyze Core Web Vitals
+        run: |
+          node -e "
+          const fs = require('fs');
+          const files = fs.readdirSync('./lighthouse-reports').filter(f => f.endsWith('.json'));
+          
+          let allPassed = true;
+          const thresholds = {
+            fcp: 1500,
+            lcp: 2500,
+            cls: 0.1,
+            tti: 3800
+          };
+          
+          const results = [];
+          
+          files.forEach(file => {
+            const data = JSON.parse(fs.readFileSync(\`./lighthouse-reports/\${file}\`, 'utf8'));
+            const metrics = data.metrics;
+            
+            const passed = {
+              fcp: metrics.firstContentfulPaint <= thresholds.fcp,
+              lcp: metrics.largestContentfulPaint <= thresholds.lcp,
+              cls: metrics.cumulativeLayoutShift <= thresholds.cls,
+              tti: metrics.timeToInteractive <= thresholds.tti
+            };
+            
+            const score = data.scores.performance;
+            
+            results.push({
+              url: data.url,
+              score: score,
+              fcp: Math.round(metrics.firstContentfulPaint),
+              lcp: Math.round(metrics.largestContentfulPaint),
+              cls: metrics.cumulativeLayoutShift.toFixed(3),
+              tti: Math.round(metrics.timeToInteractive),
+              passed: Object.values(passed).every(p => p) && score >= 85
+            });
+            
+            if (!Object.values(passed).every(p => p) || score < 85) {
+              allPassed = false;
+            }
+          });
+          
+          // Generate summary
+          console.log('# Core Web Vitals Summary');
+          console.log('');
+          console.log('| URL | Score | FCP | LCP | CLS | TTI | Status |');
+          console.log('|-----|-------|-----|-----|-----|-----|--------|');
+          
+          results.forEach(r => {
+            const status = r.passed ? '✅' : '❌';
+            console.log(\`| \${r.url} | \${r.score}/100 | \${r.fcp}ms | \${r.lcp}ms | \${r.cls} | \${r.tti}ms | \${status} |\`);
+          });
+          
+          if (!allPassed) {
+            console.log('');
+            console.log('❌ Some Core Web Vitals thresholds were not met!');
+            process.exit(1);
+          } else {
+            console.log('');
+            console.log('✅ All Core Web Vitals thresholds passed!');
+          }
+          " | tee core-web-vitals-summary.md
+      
+      - name: Upload Core Web Vitals summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-web-vitals-summary
+          path: core-web-vitals-summary.md
+
+  # ============================================================================
+  # ACCESSIBILITY CHECK
+  # ============================================================================
+  accessibility-check:
+    name: Accessibility Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g @axe-core/cli
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Start application
+        run: |
+          npm run start &
+          sleep 30
+        env:
+          PORT: 3000
+      
+      - name: Run accessibility tests
+        run: |
+          npx axe http://localhost:3000 --reporter json > accessibility-report.json
+          npx axe http://localhost:3000/blog --reporter json > accessibility-blog-report.json
+      
+      - name: Process accessibility results
+        run: |
+          node -e "
+          const fs = require('fs');
+          
+          const reports = ['accessibility-report.json', 'accessibility-blog-report.json'];
+          let totalViolations = 0;
+          
+          reports.forEach(file => {
+            if (fs.existsSync(file)) {
+              const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+              totalViolations += data.violations.length;
+              
+              if (data.violations.length > 0) {
+                console.log(\`❌ \${file}: \${data.violations.length} accessibility violations\`);
+                data.violations.forEach(v => {
+                  console.log(\`  - \${v.impact}: \${v.description}\`);
+                });
+              } else {
+                console.log(\`✅ \${file}: No accessibility violations\`);
+              }
+            }
+          });
+          
+          if (totalViolations > 0) {
+            process.exit(1);
+          }
+          "
+      
+      - name: Upload accessibility reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-reports
+          path: accessibility-*.json
+
+  # ============================================================================
+  # SEO TECHNICAL AUDIT
+  # ============================================================================
+  seo-technical-audit:
+    name: SEO Technical Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Start application
+        run: |
+          npm run start &
+          sleep 30
+        env:
+          PORT: 3000
+      
+      - name: Check robots.txt
+        run: |
+          curl -f http://localhost:3000/robots.txt || {
+            echo "❌ robots.txt not accessible"
+            exit 1
+          }
+          echo "✅ robots.txt accessible"
+      
+      - name: Check sitemap.xml
+        run: |
+          curl -f http://localhost:3000/sitemap.xml || {
+            echo "❌ sitemap.xml not accessible"
+            exit 1
+          }
+          echo "✅ sitemap.xml accessible"
+      
+      - name: Check meta tags
+        run: |
+          node -e "
+          const https = require('http');
+          const { load } = require('cheerio');
+          
+          const checkPage = (url) => {
+            return new Promise((resolve, reject) => {
+              https.get(url, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  const $ = load(data);
+                  
+                  const checks = {
+                    title: $('title').length > 0,
+                    description: $('meta[name=\"description\"]').length > 0,
+                    canonical: $('link[rel=\"canonical\"]').length > 0,
+                    ogTitle: $('meta[property=\"og:title\"]').length > 0,
+                    ogDescription: $('meta[property=\"og:description\"]').length > 0,
+                    ogImage: $('meta[property=\"og:image\"]').length > 0,
+                    twitterCard: $('meta[name=\"twitter:card\"]').length > 0,
+                    structuredData: $('script[type=\"application/ld+json\"]').length > 0
+                  };
+                  
+                  resolve({ url, checks });
+                });
+              }).on('error', reject);
+            });
+          };
+          
+          Promise.all([
+            checkPage('http://localhost:3000'),
+            checkPage('http://localhost:3000/blog')
+          ]).then(results => {
+            let allPassed = true;
+            
+            results.forEach(({ url, checks }) => {
+              console.log(\`\\n📄 \${url}\`);
+              Object.entries(checks).forEach(([check, passed]) => {
+                console.log(\`  \${passed ? '✅' : '❌'} \${check}\`);
+                if (!passed) allPassed = false;
+              });
+            });
+            
+            if (!allPassed) {
+              console.log('\\n❌ Some SEO meta tags are missing!');
+              process.exit(1);
+            } else {
+              console.log('\\n✅ All SEO meta tags present!');
+            }
+          });
+          "
+
+  # ============================================================================
+  # COMPREHENSIVE REPORT
+  # ============================================================================
+  generate-report:
+    name: Generate Comprehensive Report
+    runs-on: ubuntu-latest
+    needs: [seo-validation, lighthouse-audit, core-web-vitals, accessibility-check, seo-technical-audit]
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+      
+      - name: Generate comprehensive report
+        run: |
+          cat > comprehensive-report.md << 'EOF'
+          # 📊 The Corporate Blog - SEO & Performance Report
+          
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.ref_name }}
+          
+          ## 🎯 Executive Summary
+          
+          This report provides a comprehensive analysis of The Corporate Blog's SEO and performance metrics.
+          
+          ## 📈 Performance Metrics
+          
+          ### Lighthouse Scores
+          EOF
+          
+          # Add Lighthouse results if available
+          if [ -d "lighthouse-reports" ]; then
+            echo "Performance audit results found"
+            # Add performance data to report
+          fi
+          
+          # Add Core Web Vitals if available
+          if [ -f "core-web-vitals-summary/core-web-vitals-summary.md" ]; then
+            echo "" >> comprehensive-report.md
+            echo "### Core Web Vitals" >> comprehensive-report.md
+            echo "" >> comprehensive-report.md
+            cat core-web-vitals-summary/core-web-vitals-summary.md >> comprehensive-report.md
+          fi
+          
+          # Add SEO validation results
+          echo "" >> comprehensive-report.md
+          echo "## 🔍 SEO Validation" >> comprehensive-report.md
+          echo "" >> comprehensive-report.md
+          
+          if [ -d "seo-reports" ]; then
+            find seo-reports -name "*.md" -exec cat {} \; >> comprehensive-report.md
+          fi
+          
+          # Add accessibility results
+          if [ -d "accessibility-reports" ]; then
+            echo "" >> comprehensive-report.md
+            echo "## ♿ Accessibility" >> comprehensive-report.md
+            echo "" >> comprehensive-report.md
+            echo "Accessibility reports generated and reviewed." >> comprehensive-report.md
+          fi
+          
+          # Add recommendations
+          cat >> comprehensive-report.md << 'EOF'
+          
+          ## 💡 Recommendations
+          
+          - Monitor Core Web Vitals regularly
+          - Optimize images and implement lazy loading
+          - Ensure all pages have proper SEO metadata
+          - Maintain accessibility standards (WCAG 2.1 AA)
+          - Implement structured data for all content types
+          
+          ## 📅 Next Steps
+          
+          1. Address any failing performance metrics
+          2. Fix accessibility violations
+          3. Update SEO metadata where needed
+          4. Schedule regular audits
+          
+          ---
+          
+          *This report is automatically generated by The Corporate Blog CI/CD pipeline.*
+          EOF
+      
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-report
+          path: comprehensive-report.md
+      
+      - name: Comment PR with comprehensive report
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            if (fs.existsSync('comprehensive-report.md')) {
+              const report = fs.readFileSync('comprehensive-report.md', 'utf8');
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: report
+              });
+            }
+
+  # ============================================================================
+  # PERFORMANCE ALERTS
+  # ============================================================================
+  performance-alerts:
+    name: Performance Alerts
+    runs-on: ubuntu-latest
+    needs: [lighthouse-audit, core-web-vitals]
+    if: failure()
+    
+    steps:
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: |
+            🚨 Performance Alert: The Corporate Blog
+            
+            Performance thresholds have been exceeded or SEO issues detected.
+            
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            
+            Please review the failed checks and address performance issues.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      
+      - name: Create GitHub issue for performance failure
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Performance Alert - ' + new Date().toISOString().split('T')[0],
+              body: `
+              ## Performance Issue Detected
+              
+              **Date:** ${new Date().toISOString()}
+              **Workflow:** ${context.workflow}
+              **Run:** ${context.runNumber}
+              
+              Performance thresholds have been exceeded during scheduled monitoring.
+              
+              ### Next Steps
+              1. Review the failed workflow logs
+              2. Check Core Web Vitals metrics  
+              3. Optimize performance bottlenecks
+              4. Run manual audits to validate fixes
+              
+              ### Links
+              - [Workflow Run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+              - [Performance Guidelines](${context.payload.repository.html_url}/blob/main/docs/PERFORMANCE.md)
+              `,
+              labels: ['performance', 'alert', 'high-priority']
+            });

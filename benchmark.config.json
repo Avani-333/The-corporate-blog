@@ -1,0 +1,63 @@
+{
+  "urls": [
+    "http://localhost:3000",
+    "http://localhost:3000/blog",
+    "http://localhost:3000/blog/sample-post-slug",
+    "http://localhost:3000/categories/technology",
+    "http://localhost:3000/authors/admin"
+  ],
+  "frequency": "daily",
+  "thresholds": {
+    "performance": {
+      "min": 85,
+      "target": 95
+    },
+    "accessibility": {
+      "min": 90,
+      "target": 100
+    },
+    "bestPractices": {
+      "min": 90,
+      "target": 100
+    },
+    "seo": {
+      "min": 90,
+      "target": 100
+    },
+    "fcp": {
+      "max": 1500
+    },
+    "lcp": {
+      "max": 2500
+    },
+    "fid": {
+      "max": 100
+    },
+    "cls": {
+      "max": 0.1
+    },
+    "tti": {
+      "max": 3800
+    }
+  },
+  "notifications": {
+    "email": [
+      "dev@thecorporateblog.com"
+    ],
+    "webhook": "",
+    "slack": ""
+  },
+  "reportOptions": {
+    "generateHTML": true,
+    "saveJSON": true,
+    "includeTrends": true,
+    "maxHistoryDays": 30
+  },
+  "chromeFlags": [
+    "--headless",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-web-security"
+  ]
+}

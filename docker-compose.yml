@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: tcb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: thecorporateblog_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tcb-network
+
+  # PgBouncer Connection Pooler
+  pgbouncer:
+    image: pgbouncer/pgbouncer:1.21.0
+    container_name: tcb-pgbouncer
+    restart: unless-stopped
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: 5432
+      DATABASES_USER: postgres
+      DATABASES_PASSWORD: password
+      DATABASES_DBNAME: thecorporateblog_dev
+      
+      # Pool configuration
+      POOL_MODE: transaction
+      DEFAULT_POOL_SIZE: 25
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      MAX_CLIENT_CONN: 100
+      MAX_DB_CONNECTIONS: 25
+      
+      # Timeouts
+      SERVER_LIFETIME: 3600
+      SERVER_IDLE_TIMEOUT: 600
+      QUERY_TIMEOUT: 30
+      
+      # Logging
+      LOG_CONNECTIONS: 1
+      LOG_DISCONNECTIONS: 1
+      LOG_POOLER_ERRORS: 1
+    ports:
+      - "6432:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tcb-network
+
+  # Redis for Caching (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: tcb-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - tcb-network
+
+  # PostgreSQL Admin Interface (Development)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: tcb-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@thecorporateblog.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGLADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - tcb-network
+    profiles:
+      - dev
+
+  # Database Backup Service
+  postgres-backup:
+    image: postgres:15-alpine
+    container_name: tcb-backup
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: password
+      PGDATABASE: thecorporateblog_dev
+      BACKUP_DIR: /backups
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-cron.sh:/backup-cron.sh:ro
+    command: |
+      sh -c "
+        apk add --no-cache dcron
+        echo '0 2 * * * /backup-cron.sh' | crontab -
+        crond -f
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tcb-network
+    profiles:
+      - backup
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgladmin_data:
+    driver: local
+
+networks:
+  tcb-network:
+    driver: bridge
+    name: tcb-network

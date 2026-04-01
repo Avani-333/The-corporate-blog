@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-white text-gray-900 transition-colors duration-200;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-gray-400;
+  }
+}
+
+@layer components {
+  /* Button variants */
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-700 border border-transparent rounded-lg hover:bg-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-700 focus:ring-offset-2 transition-colors duration-200;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors duration-200;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200;
+  }
+
+  /* Form elements */
+  .form-input {
+    @apply block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200;
+  }
+
+  .form-textarea {
+    @apply block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200;
+  }
+
+  .form-select {
+    @apply block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200;
+  }
+
+  /* Card component */
+  .card {
+    @apply bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-200;
+  }
+
+  .card-body {
+    @apply px-6 py-4;
+  }
+
+  .card-footer {
+    @apply px-6 py-4 border-t border-gray-200 bg-gray-50;
+  }
+
+  /* Typography */
+  .prose-custom {
+    @apply prose prose-gray max-w-none;
+  }
+
+  .prose-custom h1 {
+    @apply text-3xl font-bold font-serif text-gray-900 mb-6;
+  }
+
+  .prose-custom h2 {
+    @apply text-2xl font-bold font-serif text-gray-900 mt-8 mb-4;
+  }
+
+  .prose-custom h3 {
+    @apply text-xl font-semibold font-serif text-gray-900 mt-6 mb-3;
+  }
+
+  .prose-custom p {
+    @apply text-gray-700 leading-relaxed mb-4;
+  }
+
+  .prose-custom a {
+    @apply text-primary-600 hover:text-primary-700 font-medium underline;
+  }
+
+  .prose-custom blockquote {
+    @apply border-l-4 border-primary-200 pl-4 py-2 italic text-gray-600 bg-gray-50 rounded-r-lg;
+  }
+
+  .prose-custom ul,
+  .prose-custom ol {
+    @apply mb-4 ml-6;
+  }
+
+  .prose-custom li {
+    @apply mb-2;
+  }
+
+  .prose-custom code {
+    @apply px-2 py-1 text-sm bg-gray-100 text-gray-800 rounded font-mono;
+  }
+
+  .prose-custom pre {
+    @apply p-4 bg-gray-900 text-gray-100 rounded-lg overflow-x-auto font-mono text-sm;
+  }
+
+  .prose-custom pre code {
+    @apply p-0 bg-transparent text-inherit;
+  }
+
+  /* Loading states */
+  .skeleton {
+    @apply animate-pulse bg-gray-200 rounded;
+  }
+
+  .skeleton-text {
+    @apply h-4 bg-gray-200 rounded animate-pulse;
+  }
+
+  .skeleton-avatar {
+    @apply w-10 h-10 bg-gray-200 rounded-full animate-pulse;
+  }
+
+  /* Focus states for accessibility */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent;
+  }
+
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-primary-500 to-primary-600;
+  }
+
+  .shadow-brand {
+    box-shadow: 0 10px 15px -3px rgba(14, 165, 233, 0.1),
+      0 4px 6px -2px rgba(14, 165, 233, 0.05);
+  }
+
+  /* Animation utilities */
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Print styles */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+  }
+}
