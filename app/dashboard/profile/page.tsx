@@ -309,7 +309,6 @@ function ActivitySummary() {
     { label: 'Posts Created', value: '12', period: 'Last 30 days' },
     { label: 'Comments Made', value: '34', period: 'Last 30 days' },
     { label: 'Profile Views', value: '156', period: 'Last 30 days' },
-    { label: 'Joined', value: user?.createdAt.toLocaleDateString() || '', period: '' },
   ];
 
   return (
