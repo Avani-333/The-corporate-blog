@@ -24,7 +24,7 @@ import { UserRole } from '@/types';
 // ============================================================================
 
 function ProfileInformation() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -36,7 +36,20 @@ function ProfileInformation() {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      await updateProfile(formData);
+      // Update user in auth context
+      updateUser(formData);
+      
+      // Optionally sync with backend
+      try {
+        await fetch('/api/auth/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        });
+      } catch (err) {
+        console.warn('Failed to sync profile with backend:', err);
+      }
+      
       setIsEditing(false);
     } catch (error) {
       console.error('Failed to update profile:', error);
