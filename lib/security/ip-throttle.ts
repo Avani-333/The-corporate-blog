@@ -33,7 +33,7 @@ class IpThrottler {
     burstThreshold?: number
   ): { allowed: boolean; metrics: IpMetrics } {
     const now = Date.now();
-    let metrics = this.metrics.get(ip) || {
+    const metrics = this.metrics.get(ip) || {
       requestCount: 0,
       lastRequestTime: now,
       suspicious: false,

@@ -43,7 +43,7 @@ interface QueryPattern {
 // ============================================================================
 
 let queryLog: QueryRecord[] = [];
-let patternMap = new Map<string, QueryPattern>();
+const patternMap = new Map<string, QueryPattern>();
 
 export function startQueryMonitoring(prisma: any) {
   if (process.env.LOG_QUERIES !== 'true') {
