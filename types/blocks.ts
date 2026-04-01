@@ -363,9 +363,6 @@ export interface ArticleContent {
   };
 }
 
-// Editor state type - represents the current state of the editor
-export type EditorState = ArticleContent | ContentBlock[];
-
 // Zod schemas for validation
 export const TextNodeSchema = z.object({
   text: z.string(),

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCMSData } from '@/lib/cms-mapping';
 import { validatePostUniqueConstraints } from '@/lib/slug-validation';
-import type { EditorState } from '@/types/blocks';
+import type { EditorState } from '@/lib/editor-state';
 
 /**
  * POST /api/cms/posts/validate-content
