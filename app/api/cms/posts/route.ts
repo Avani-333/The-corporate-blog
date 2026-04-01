@@ -3,16 +3,9 @@ import { z } from 'zod';
 import { 
   createPostFromCMS,
   updatePostFromCMS,
-  loadPostForCMS,
-  validateSlugForCMS,
-  generateSlugForCMS
+  loadPostForCMS
 } from '@/lib/cms-service';
-import { 
-  validatePostUniqueConstraints,
-  checkSlugAvailability 
-} from '@/lib/slug-validation';
 import { validateCMSData } from '@/lib/cms-mapping';
-import type { EditorState } from '@/types/blocks';
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -51,15 +44,6 @@ const updatePostSchema = z.object({
   publishNow: z.boolean().default(false),
 });
 
-const slugValidationSchema = z.object({
-  slug: z.string().min(1, 'Slug is required'),
-  postId: z.string().uuid().optional(),
-});
-
-const titleToSlugSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  postId: z.string().uuid().optional(),
-});
 
 // ============================================================================
 // POST ENDPOINTS
@@ -262,144 +246,3 @@ export async function PUT(
   }
 }
 
-// ============================================================================
-// SLUG VALIDATION ENDPOINTS
-// ============================================================================
-
-/**
- * POST /api/cms/posts/validate-slug
- * Validate slug availability in real-time
- */
-export async function validateSlug(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { slug, postId } = slugValidationSchema.parse(body);
-
-    const result = await validateSlugForCMS(slug, 'post', postId);
-
-    return NextResponse.json({
-      success: true,
-      data: result,
-    });
-
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message,
-          })),
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('Error in validateSlug:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * POST /api/cms/posts/generate-slug
- * Generate slug from title
- */
-export async function generateSlug(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { title, postId } = titleToSlugSchema.parse(body);
-
-    const slug = await generateSlugForCMS(title, 'post', postId);
-
-    // Also validate the generated slug
-    const validation = await validateSlugForCMS(slug, 'post', postId);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        slug,
-        validation,
-      },
-    });
-
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message,
-          })),
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('Error in generateSlug:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-// ============================================================================
-// CONTENT VALIDATION ENDPOINT
-// ============================================================================
-
-/**
- * POST /api/cms/posts/validate-content
- * Validate CMS editor state without saving
- */
-export async function validateContent(request: NextRequest) {
-  try {
-    const body = await request.json();
-    
-    // Parse the editor state
-    const editorState = body.editorState as EditorState;
-    
-    if (!editorState) {
-      return NextResponse.json(
-        { error: 'Editor state is required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate CMS structure
-    const cmsValidation = validateCMSData(editorState);
-
-    // Validate unique constraints if title is present
-    let uniqueValidation = null;
-    if (editorState.post?.title) {
-      uniqueValidation = await validatePostUniqueConstraints({
-        title: editorState.post.title,
-        slug: editorState.post.slug,
-        postId: body.postId,
-      });
-    }
-
-    const isValid = cmsValidation.isValid && (uniqueValidation?.isValid ?? true);
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        isValid,
-        cmsValidation,
-        uniqueValidation,
-        suggestedSlug: uniqueValidation?.validatedData?.slug,
-      },
-    });
-
-  } catch (error) {
-    console.error('Error in validateContent:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}

@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { 
   generateAccessToken,
-  verifyPassword,
   setAuthCookies,
   validateUserStatus,
   AUTH_ERRORS,
@@ -15,6 +14,7 @@ import {
   type LoginCredentials,
   type AuthResult 
 } from '@/lib/auth/jwt';
+import { verifyPassword } from '@/lib/auth/password';
 import { createRefreshToken } from '@/lib/auth/refresh-tokens';
 import { UserStatus } from '@/types';
 

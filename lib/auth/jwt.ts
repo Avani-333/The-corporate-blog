@@ -341,22 +341,6 @@ export function generateTokenId(): string {
   return crypto.randomUUID();
 }
 
-/**
- * Hash password for storage
- */
-export async function hashPassword(password: string): Promise<string> {
-  const bcrypt = await import('bcryptjs');
-  return bcrypt.hash(password, 12);
-}
-
-/**
- * Verify password against hash
- */
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const bcrypt = await import('bcryptjs');
-  return bcrypt.compare(password, hash);
-}
-
 // ============================================================================
 // ERROR UTILITIES
 // ============================================================================
@@ -398,8 +382,6 @@ export default {
   clearAuthCookies,
   validateUserStatus,
   generateTokenId,
-  hashPassword,
-  verifyPassword,
   AUTH_CONFIG,
   AUTH_ERRORS,
 };

@@ -7,10 +7,10 @@ import { OAuth2Client } from 'google-auth-library';
 import { PrismaClient } from '@prisma/client';
 import { 
   generateAccessToken, 
-  hashPassword,
   generateTokenId,
   type JWTUser 
 } from './jwt';
+import { hashPassword } from './password';
 import { createRefreshToken } from './refresh-tokens';
 import { UserRole, UserStatus } from '@/types';
 
