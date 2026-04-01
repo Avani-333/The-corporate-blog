@@ -93,30 +93,8 @@ export interface ApiResponse<T> {
   meta?: PaginationMeta;
 }
 
-export enum UserRole {
-  SUPER_ADMIN = 'SUPER_ADMIN',     // Complete system control
-  ADMIN = 'ADMIN',                 // Administrative functions
-  MODERATOR = 'MODERATOR',         // Comment and user moderation
-  EDITOR = 'EDITOR',               // Content editing and publishing
-  AUTHOR = 'AUTHOR',               // Content creation
-  CONTRIBUTOR = 'CONTRIBUTOR',     // Limited content creation
-  SUBSCRIBER = 'SUBSCRIBER',       // Premium content access
-  GUEST = 'GUEST',                 // Basic guest access
-}
-
-export enum UserStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE', 
-  SUSPENDED = 'SUSPENDED',
-  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
-}
-
-export enum PostStatus {
-  DRAFT = 'DRAFT',
-  PUBLISHED = 'PUBLISHED',
-  SCHEDULED = 'SCHEDULED',
-  ARCHIVED = 'ARCHIVED',
-}
+// Import enums from Prisma to ensure type consistency across the application
+export { UserRole, UserStatus, PostStatus } from '@prisma/client';
 
 export interface BlockContent {
   id: string;
