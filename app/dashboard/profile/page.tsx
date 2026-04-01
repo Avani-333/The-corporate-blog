@@ -357,5 +357,5 @@ function ProfilePage() {
   );
 }
 
-// Protect profile page - require authentication (USER role minimum)
-export default withRoleProtection(ProfilePage, UserRole.USER);
+// Protect profile page - require authentication (any authenticated user)
+export default withRoleProtection(ProfilePage, UserRole.SUBSCRIBER);
