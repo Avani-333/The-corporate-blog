@@ -244,7 +244,7 @@ export const AdSlot = ({
             </div>
           )}
 
-          {(type === 'placeholder' || (hasError && type !== 'placeholder')) && (
+          {(type === 'placeholder' || hasError) && (
             <div
               style={{
                 width: '100%',
