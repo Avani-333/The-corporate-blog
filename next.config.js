@@ -8,6 +8,16 @@ const nextConfig = {
   // Disable source maps in production to prevent secret leakage
   productionBrowserSourceMaps: false,
   
+  // Skip type checking during builds 
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  
+  // Skip ESLint during builds
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client'],
   },

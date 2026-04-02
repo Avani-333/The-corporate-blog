@@ -5,7 +5,8 @@
   "installCommand": "npm ci",
   "devCommand": "npm run dev",
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "SENTRY_SUPPRESS_GLOBAL_ERROR_HANDLER_FILE_WARNING": "1"
   },
   "build": {
     "env": {
