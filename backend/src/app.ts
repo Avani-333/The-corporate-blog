@@ -26,6 +26,7 @@ import analyticsRoutes from '@/routes/analytics';
 import metricsRoutes from '@/routes/metrics';
 import healthRoutes from '@/routes/health';
 import dashboardRoutes from '@/routes/dashboard';
+import exportRoutes from '@/routes/export';
 
 class App {
   public app: Application;
@@ -121,6 +122,9 @@ class App {
 
     // Internal operational metrics endpoint.
     this.app.use('/metrics', metricsRoutes);
+
+    // Admin export routes
+    this.app.use('/api/admin', exportRoutes);
 
     // API routes
     this.app.use('/api/auth', authRoutes);

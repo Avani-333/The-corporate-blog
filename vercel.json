@@ -15,8 +15,17 @@
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 30
+    },
+    "app/api/cron/**/*.ts": {
+      "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/export",
+      "schedule": "0 2 * * 1"
+    }
+  ],
   "regions": ["iad1"],
   "rewrites": [
     {

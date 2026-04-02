@@ -47,6 +47,7 @@
     "export:weekly": "node scripts/weekly-export.js",
     "export:weekly:cron": "bash scripts/weekly-export-cron.sh",
     "export:manual": "VERBOSE=true node scripts/weekly-export.js",
+    "export:manage": "node scripts/export-manager.js",
     "benchmark": "node scripts/benchmark-cli.js",
     "benchmark:audit": "node scripts/benchmark-cli.js audit",
     "benchmark:seo": "node scripts/benchmark-cli.js seo-audit",

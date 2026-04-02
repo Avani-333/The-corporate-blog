@@ -1,0 +1,84 @@
+name: Weekly Database Export
+
+on:
+  schedule:
+    # Run every Monday at 2 AM UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    permissions:
+      contents: read
+      
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      EXPORT_DIR: ./exports
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create exports directory
+        run: mkdir -p exports
+
+      - name: Run weekly export
+        run: npm run export:weekly
+        continue-on-error: true
+
+      - name: Upload exports to S3
+        if: success()
+        run: |
+          if [ -d "exports" ] && [ "$(ls -A exports)" ]; then
+            aws s3 sync exports/ s3://${{ secrets.AWS_S3_BUCKET }}/database-exports/weekly/ --storage-class GLACIER
+          fi
+        continue-on-error: true
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ Weekly Database Export Failed\n*Commit*: ${{ github.sha }}\n*Run*: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }'
+
+      - name: Upload exports as artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-exports
+          path: exports/
+          retention-days: 90

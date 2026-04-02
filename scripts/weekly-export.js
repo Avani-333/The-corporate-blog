@@ -508,69 +508,105 @@ async function runExport() {
   log('================================', 'info');
   log('Weekly Database Export Script', 'info');
   log('================================', 'info');
+  if (options.dryRun) {
+    log('🔵 DRY RUN MODE - No changes will be made', 'warning');
+  }
   log(`Environment: ${env}`, 'info');
   log(`Week: ${getWeekNumber()}`, 'info');
   log(`Time: ${new Date().toISOString()}`, 'info');
+  log(`Formats: ${Object.entries(EXPORT_CONFIG.formats).filter(([_, v]) => v.enabled).map(([k]) => k).join(', ') || 'none enabled'}`, 'info');
   console.log('');
 
   try {
     // 1. Prepare
-    ensureDirectoryExists(EXPORT_CONFIG.exportDir);
+    if (!options.dryRun) {
+      ensureDirectoryExists(EXPORT_CONFIG.exportDir);
+    } else {
+      log(`[DRY RUN] Would create directory: ${EXPORT_CONFIG.exportDir}`, 'info');
+    }
 
     // 2. Export
     const exportResults = [];
 
     if (EXPORT_CONFIG.formats.sql.enabled) {
-      const sqlExport = await exportSQL(env);
-      exportResults.push(sqlExport);
-    }
-
-    if (EXPORT_CONFIG.formats.csv.enabled) {
-      const csvExport = await exportCSV(env);
-      exportResults.push(csvExport);
-    }
-
-    // 3. Upload to remote storage
-    for (const exportFile of exportResults) {
-      if (EXPORT_CONFIG.remoteStorage.s3.enabled) {
-        const s3Result = await uploadToS3(exportFile);
-        if (s3Result) {
-          exportFile.s3 = s3Result;
-        }
+      if (options.dryRun) {
+        log('[DRY RUN] Would export database to SQL', 'info');
+      } else {
+        const sqlExport = await exportSQL(env);
+        exportResults.push(sqlExport);
       }
     }
 
+    if (EXPORT_CONFIG.formats.csv.enabled) {
+      if (options.dryRun) {
+        log('[DRY RUN] Would export database tables to CSV', 'info');
+      } else {
+        const csvExport = await exportCSV(env);
+        exportResults.push(csvExport);
+      }
+    }
+
+    // 3. Upload to remote storage
+    if (!options.dryRun) {
+      for (const exportFile of exportResults) {
+        if (EXPORT_CONFIG.remoteStorage.s3.enabled) {
+          const s3Result = await uploadToS3(exportFile);
+          if (s3Result) {
+            exportFile.s3 = s3Result;
+          }
+        }
+      }
+    } else if (EXPORT_CONFIG.remoteStorage.s3.enabled) {
+      log('[DRY RUN] Would upload exports to S3', 'info');
+    }
+
     // 4. Cleanup old exports
-    await cleanupExpiredExports();
+    if (!options.dryRun) {
+      if (options.cleanup) {
+        await cleanupExpiredExports();
+      } else {
+        log('Skipping cleanup (--no-cleanup)', 'info');
+      }
+    } else {
+      log('[DRY RUN] Would cleanup expired exports', 'info');
+    }
 
     // 5. Notify
-    if (EXPORT_CONFIG.remoteStorage.slack.enabled) {
+    if (!options.dryRun && EXPORT_CONFIG.remoteStorage.slack.enabled) {
       await notifySlack(exportResults);
+    } else if (options.dryRun && EXPORT_CONFIG.remoteStorage.slack.enabled) {
+      log('[DRY RUN] Would send Slack notification', 'info');
     }
 
     // 6. Summary
     const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2);
-    const totalSize = exportResults.reduce((sum, exp) => sum + parseFloat(exp.size), 0).toFixed(2);
+    const totalSize = exportResults.length > 0 
+      ? exportResults.reduce((sum, exp) => sum + parseFloat(exp.size), 0).toFixed(2)
+      : '0';
 
     console.log('');
-    log('================================', 'success');
-    log('Export Summary', 'success');
-    log('================================', 'success');
+    log('================================', options.dryRun ? 'warning' : 'success');
+    log(options.dryRun ? 'Dry Run Complete' : 'Export Summary', 'success');
+    log('================================', options.dryRun ? 'warning' : 'success');
     log(`Duration: ${duration} minutes`, 'info');
-    log(`Total Size: ${totalSize}MB`, 'info');
-    log(`Files: ${exportResults.length}`, 'info');
-    log(`Location: ${EXPORT_CONFIG.exportDir}`, 'info');
+    if (!options.dryRun) {
+      log(`Total Size: ${totalSize}MB`, 'info');
+      log(`Files: ${exportResults.length}`, 'info');
+      log(`Location: ${EXPORT_CONFIG.exportDir}`, 'info');
+    }
     console.log('');
 
-    exportResults.forEach(exp => {
-      log(`  ✅ ${exp.filename} (${exp.size}MB)`, 'success');
-      if (exp.s3) {
-        log(`     → S3: s3://${exp.s3.bucket}/${exp.s3.key}`, 'info');
-      }
-    });
+    if (!options.dryRun) {
+      exportResults.forEach(exp => {
+        log(`  ✅ ${exp.filename} (${exp.size}MB)`, 'success');
+        if (exp.s3) {
+          log(`     → S3: s3://${exp.s3.bucket}/${exp.s3.key}`, 'info');
+        }
+      });
+    }
 
     console.log('');
-    log('Export completed successfully!', 'success');
+    log(options.dryRun ? 'Dry run completed successfully!' : 'Export completed successfully!', 'success');
 
   } catch (error) {
     log(`Export failed: ${error.message}`, 'error');
@@ -586,6 +622,22 @@ async function runExport() {
 // Handle arguments
 const args = process.argv.slice(2);
 
+// Parse CLI options
+const options = {
+  dryRun: args.includes('--dry-run'),
+  cleanup: !args.includes('--no-cleanup'),
+  s3: !args.includes('--no-s3')
+};
+
+// Parse --formats option
+const formatsIdx = args.indexOf('--formats');
+if (formatsIdx !== -1 && formatsIdx + 1 < args.length) {
+  const formats = args[formatsIdx + 1].split(',');
+  EXPORT_CONFIG.formats.sql.enabled = formats.includes('sql');
+  EXPORT_CONFIG.formats.csv.enabled = formats.includes('csv');
+  EXPORT_CONFIG.formats.json.enabled = formats.includes('json');
+}
+
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
 Weekly Database Export Script
@@ -598,7 +650,7 @@ Options:
   --dry-run           Don't actually export, just show what would be done
   --formats <list>    Comma-separated formats to export (sql,csv,json)
   --no-cleanup        Skip cleanup of old exports
-  --no-s3            Skip S3 upload
+  --no-s3             Skip S3 upload
 
 Environment Variables:
   DATABASE_URL              PostgreSQL connection string
@@ -616,8 +668,30 @@ Examples:
   VERBOSE=true node scripts/weekly-export.js
   
   EXPORT_DIR=/backups node scripts/weekly-export.js
+  
+  node scripts/weekly-export.js --formats sql,csv --no-s3
+  
+  node scripts/weekly-export.js --dry-run
   `);
   process.exit(0);
+}
+
+// Show options in verbose mode
+if (EXPORT_CONFIG.options.verbose) {
+  log(`CLI Options: ${JSON.stringify(options)}`, 'info');
+  if (options.dryRun) {
+    log('DRY RUN MODE - No changes will be made', 'warning');
+  }
+}
+
+// Override config based on CLI options
+if (options.dryRun) {
+  EXPORT_CONFIG.remoteStorage.s3.enabled = false;
+  EXPORT_CONFIG.remoteStorage.slack.enabled = false;
+}
+
+if (!options.s3) {
+  EXPORT_CONFIG.remoteStorage.s3.enabled = false;
 }
 
 // Run export
