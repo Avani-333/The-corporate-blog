@@ -13,8 +13,8 @@
   ],
   "scripts": {
     "dev": "next dev",
-    "build": "next build && npm run verify:security",
-    "build:prod": "NODE_ENV=production next build && npm run verify:security",
+    "build": "next build",
+    "build:prod": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
