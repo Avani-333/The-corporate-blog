@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUpRightIcon } from '@heroicons/react/24/solid';
+import { ArrowUpRight } from 'lucide-react';
 
 interface SponsorBadgeProps {
   /**
@@ -146,7 +146,7 @@ export function SponsorBadge({
           target="_blank"
         >
           {ctaText}
-          <ArrowUpRightIcon className="w-4 h-4" />
+          <ArrowUpRight className="w-4 h-4" />
         </a>
       </div>
     </div>
